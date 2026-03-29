@@ -8,12 +8,18 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     frontend_url: str = "http://localhost:3000"
 
-    # Feature flags
-    use_mock_ai: bool = True
+    # ── AI toggle ────────────────────────────────────────────────────────────
+    # Set AI_ENABLED=true in your .env (or Render/Railway env vars) to use
+    # the real Claude API. Everything else stays the same.
+    ai_enabled: bool = False
 
-    # Phase 2+ — optional until needed
+    # Required when ai_enabled=true
     anthropic_api_key: str = ""
+
+    # Phase 3 — JSearch (RapidAPI)
     jsearch_api_key: str = ""
+
+    # Phase 4+ — optional
     resend_api_key: str = ""
 
 
