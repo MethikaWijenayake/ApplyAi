@@ -1,21 +1,11 @@
 from fastapi import APIRouter
-from pydantic import BaseModel
-
-from app.services.ai_service import score_job_match
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
+# Job search is handled by the Next.js API route (/api/jobs/search)
+# which calls JSearch directly to avoid CORS issues.
+# This router is kept as a placeholder for future server-side job features.
 
-class MatchRequest(BaseModel):
-    resume_json: dict
-    job_description: str
-
-
-@router.post("/match")
-async def match_job(body: MatchRequest):
-    """
-    Score a resume against a job description.
-    Returns mock data until Phase 3.
-    """
-    result = await score_job_match(body.resume_json, body.job_description)
-    return result
+@router.get("/ping")
+async def ping():
+    return {"status": "ok", "service": "jobs"}
