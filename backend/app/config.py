@@ -8,19 +8,22 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     frontend_url: str = "http://localhost:3000"
 
-    # ── AI toggle ────────────────────────────────────────────────────────────
-    # Set AI_ENABLED=true in your .env (or Render/Railway env vars) to use
-    # the real Claude API. Everything else stays the same.
+    # ── AI feature flag ───────────────────────────────────────────────────────
+    # false = mock responses everywhere (default)
+    # true  = real Claude API (requires anthropic_api_key)
     ai_enabled: bool = False
-
-    # Required when ai_enabled=true
     anthropic_api_key: str = ""
 
-    # Phase 3 — JSearch (RapidAPI)
-    jsearch_api_key: str = ""
-
-    # Phase 4+ — optional
+    # ── Phase 4 ───────────────────────────────────────────────────────────────
+    # Custom email domain — e.g. "getapplyai.com"
+    email_domain: str = ""
+    # Resend API key for sending email
     resend_api_key: str = ""
+    # Secret to verify inbound Cloudflare email webhooks
+    email_webhook_secret: str = ""
+
+    # ── Phase 3 ───────────────────────────────────────────────────────────────
+    jsearch_api_key: str = ""
 
 
 settings = Settings()
