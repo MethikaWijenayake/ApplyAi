@@ -1,19 +1,58 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Instrument+Serif:ital@0;1&display=swap');
 
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
+  --bg:        #FAF8F5;
+  --bg-card:   #FFFFFF;
+  --bg-subtle: #F2EDE6;
+  --border:    #E5DDD4;
+  --border-strong: #C9BFB4;
+  --text:      #1C1814;
+  --text-2:    #6B6460;
+  --text-3:    #9C948E;
+  --accent:    #C96442;
+  --accent-hover: #B5572E;
+  --accent-light: #F5EAE4;
+  --accent-border: #E8C4B4;
+  --success:   #3D7A5E;
+  --success-light: #E6F2EC;
+  --warning:   #A0682A;
+  --warning-light: #FAF0E4;
+  --error:     #A0342A;
+  --error-light: #FAE8E6;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f172a;
-    --foreground: #f8fafc;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4 {
+  font-family: 'Instrument Serif', serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

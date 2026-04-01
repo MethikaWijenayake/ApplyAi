@@ -1,116 +1,105 @@
 import { createClient } from '@/lib/supabase/server'
 
-const statCards = [
-  { label: 'Resume uploaded', value: '—', sub: 'Upload your first resume', color: 'indigo' },
-  { label: 'Jobs matched', value: '0', sub: 'Add a resume to see matches', color: 'violet' },
-  { label: 'Applications sent', value: '0', sub: 'No applications yet', color: 'sky' },
-  { label: 'Interviews scheduled', value: '0', sub: 'Keep applying!', color: 'emerald' },
+const stats = [
+  { label: 'Resume', value: '—', sub: 'Not uploaded' },
+  { label: 'Jobs matched', value: '0', sub: 'Upload resume first' },
+  { label: 'Applications', value: '0', sub: 'None sent yet' },
+  { label: 'Interviews', value: '0', sub: 'Keep applying' },
+]
+
+const steps = [
+  { n: '1', title: 'Upload your resume', desc: 'We parse it and build your profile automatically.', href: '/resume', cta: 'Upload resume' },
+  { n: '2', title: 'Browse matched jobs', desc: 'See your match score for every listing.', href: '/jobs', cta: 'Browse jobs' },
+  { n: '3', title: 'Enable auto-apply', desc: 'ApplyAI submits applications on your behalf.', href: '/jobs', cta: 'Set up auto-apply' },
 ]
 
 export default async function DashboardPage() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const { data: profile } = await supabase
-    .from('users')
-    .select('full_name')
-    .eq('id', user!.id)
-    .single()
-
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: profile } = await supabase.from('users').select('full_name').eq('id', user!.id).single()
   const firstName = profile?.full_name?.split(' ')[0] ?? 'there'
 
   return (
-    <div className="max-w-5xl">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">
-          Good morning, {firstName} 👋
+    <div style={{ maxWidth: '820px' }}>
+      <div style={{ marginBottom: '32px' }}>
+        <h1 style={{
+          fontFamily: 'Instrument Serif, serif', fontWeight: 400,
+          fontSize: '26px', color: 'var(--text)', marginBottom: '4px', letterSpacing: '-0.01em',
+        }}>
+          Good morning, {firstName}
         </h1>
-        <p className="text-slate-400 mt-1">
-          Here&apos;s what&apos;s happening with your job search today.
+        <p style={{ fontSize: '14px', color: 'var(--text-2)', fontFamily: 'Instrument Sans, sans-serif' }}>
+          Here is where your job search stands today.
         </p>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {statCards.map((card) => (
-          <div
-            key={card.label}
-            className="bg-slate-900 border border-slate-800 rounded-xl p-5"
-          >
-            <p className="text-slate-500 text-xs font-medium uppercase tracking-wider mb-2">
-              {card.label}
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1px', background: 'var(--border)', borderRadius: '12px', overflow: 'hidden', marginBottom: '24px' }}>
+        {stats.map((s) => (
+          <div key={s.label} style={{ background: 'var(--bg-card)', padding: '20px 20px 18px' }}>
+            <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', marginBottom: '8px', fontFamily: 'Instrument Sans, sans-serif' }}>
+              {s.label}
             </p>
-            <p className="text-3xl font-bold text-white mb-1">{card.value}</p>
-            <p className="text-slate-500 text-xs">{card.sub}</p>
+            <p style={{ fontFamily: 'Instrument Serif, serif', fontSize: '28px', color: 'var(--text)', marginBottom: '2px', lineHeight: 1 }}>
+              {s.value}
+            </p>
+            <p style={{ fontSize: '11px', color: 'var(--text-3)', fontFamily: 'Instrument Sans, sans-serif' }}>
+              {s.sub}
+            </p>
           </div>
         ))}
       </div>
 
-      {/* Quick actions */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6">
-        <h2 className="text-white font-semibold mb-4">Get started</h2>
-        <div className="space-y-3">
-          {[
-            {
-              step: '1',
-              title: 'Upload your resume',
-              desc: 'We&apos;ll parse it and find matching jobs automatically.',
-              href: '/resume',
-              cta: 'Upload resume →',
-              done: false,
-            },
-            {
-              step: '2',
-              title: 'Browse matched jobs',
-              desc: 'See how well your profile fits each role.',
-              href: '/jobs',
-              cta: 'Browse jobs →',
-              done: false,
-            },
-            {
-              step: '3',
-              title: 'Enable auto-apply',
-              desc: 'Let ApplyAI submit applications on your behalf.',
-              href: '/jobs',
-              cta: 'Set up auto-apply →',
-              done: false,
-            },
-          ].map((item) => (
-            <div
-              key={item.step}
-              className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700/50"
-            >
-              <div className="w-8 h-8 rounded-full bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-sm font-bold flex-shrink-0">
-                {item.step}
+      {/* Getting started */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', marginBottom: '16px' }}>
+        <p style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', marginBottom: '20px', fontFamily: 'Instrument Sans, sans-serif' }}>
+          Getting started
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {steps.map((step) => (
+            <div key={step.n} style={{
+              display: 'flex', alignItems: 'center', gap: '16px',
+              padding: '14px 16px', borderRadius: '8px',
+              background: 'var(--bg)', border: '1px solid var(--border)',
+            }}>
+              <div style={{
+                width: '28px', height: '28px', borderRadius: '50%',
+                background: 'var(--accent-light)', border: '1px solid var(--accent-border)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--accent)', fontSize: '12px', fontWeight: 600, flexShrink: 0,
+                fontFamily: 'Instrument Sans, sans-serif',
+              }}>
+                {step.n}
               </div>
-              <div className="flex-1">
-                <p className="text-white text-sm font-medium">{item.title}</p>
-                <p className="text-slate-500 text-xs mt-0.5"
-                   dangerouslySetInnerHTML={{ __html: item.desc }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', marginBottom: '1px', fontFamily: 'Instrument Sans, sans-serif' }}>
+                  {step.title}
+                </p>
+                <p style={{ fontSize: '12px', color: 'var(--text-3)', fontFamily: 'Instrument Sans, sans-serif' }}>
+                  {step.desc}
+                </p>
               </div>
-              <a
-                href={item.href}
-                className="text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors whitespace-nowrap"
-              >
-                {item.cta}
+              <a href={step.href} style={{ fontSize: '12px', color: 'var(--accent)', fontWeight: 500, textDecoration: 'none', whiteSpace: 'nowrap', fontFamily: 'Instrument Sans, sans-serif' }}>
+                {step.cta} →
               </a>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Coming soon banner */}
-      <div className="bg-indigo-950/50 border border-indigo-800/50 rounded-xl p-5 flex items-center gap-4">
-        <div className="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center text-xl flex-shrink-0">
-          🤖
-        </div>
+      {/* AI notice */}
+      <div style={{
+        background: 'var(--accent-light)', border: '1px solid var(--accent-border)',
+        borderRadius: '12px', padding: '16px 20px',
+        display: 'flex', alignItems: 'flex-start', gap: '12px',
+      }}>
+        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', marginTop: '7px', flexShrink: 0 }} />
         <div>
-          <p className="text-indigo-200 font-medium text-sm">AI features coming soon</p>
-          <p className="text-indigo-400/70 text-xs mt-0.5">
-            Resume scoring, job matching, auto-apply, and interview prep are being wired up. Upload your resume to get started.
+          <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--accent)', marginBottom: '2px', fontFamily: 'Instrument Sans, sans-serif' }}>
+            AI features active
+          </p>
+          <p style={{ fontSize: '12px', color: '#A0522D', fontFamily: 'Instrument Sans, sans-serif' }}>
+            Resume scoring, job matching, and interview prep are ready. Upload your resume to begin.
           </p>
         </div>
       </div>

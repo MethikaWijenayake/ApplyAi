@@ -5,6 +5,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+const inputStyle = {
+  width: '100%', background: 'var(--bg)', border: '1px solid var(--border)',
+  color: 'var(--text)', borderRadius: '8px', padding: '10px 14px',
+  fontSize: '14px', fontFamily: 'Instrument Sans, sans-serif', outline: 'none',
+  transition: 'border-color 0.15s',
+}
+
 export default function SignupPage() {
   const router = useRouter()
   const [fullName, setFullName] = useState('')
@@ -17,105 +24,91 @@ export default function SignupPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
-      setLoading(false)
-      return
-    }
-
+    if (password.length < 8) { setError('Password must be at least 8 characters.'); setLoading(false); return }
     const supabase = createClient()
     const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+      email, password,
+      options: { data: { full_name: fullName }, emailRedirectTo: `${window.location.origin}/auth/callback` },
     })
-
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
-    }
-
-    // Auto sign-in after signup (Supabase does this by default when email confirmation is off)
+    if (error) { setError(error.message); setLoading(false); return }
     router.push('/dashboard')
     router.refresh()
   }
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-white mb-1">Create your account</h1>
-      <p className="text-slate-400 text-sm mb-8">Start applying smarter — it&apos;s free</p>
+      <h1 style={{
+        fontFamily: 'Instrument Serif, serif', fontWeight: 400,
+        fontSize: '26px', color: 'var(--text)', marginBottom: '6px', letterSpacing: '-0.01em',
+      }}>
+        Create your account
+      </h1>
+      <p style={{ fontSize: '14px', color: 'var(--text-2)', marginBottom: '28px', fontFamily: 'Instrument Sans, sans-serif' }}>
+        Free to start — no credit card needed
+      </p>
 
       {error && (
-        <div className="bg-red-950 border border-red-800 text-red-300 text-sm px-4 py-3 rounded-lg mb-6">
+        <div style={{
+          background: 'var(--error-light)', border: '1px solid #F0B8B4',
+          color: 'var(--error)', fontSize: '13px', padding: '10px 14px',
+          borderRadius: '8px', marginBottom: '20px', fontFamily: 'Instrument Sans, sans-serif',
+        }}>
           {error}
         </div>
       )}
 
-      <form onSubmit={handleSignup} className="space-y-4">
+      <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div>
-          <label htmlFor="fullName" className="block text-sm font-medium text-slate-300 mb-1.5">
+          <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text)', marginBottom: '6px', fontFamily: 'Instrument Sans, sans-serif' }}>
             Full name
           </label>
           <input
-            id="fullName"
-            type="text"
-            required
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Jane Smith"
-            className="w-full bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)}
+            placeholder="Jane Smith" style={inputStyle}
+            onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
+            onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
           />
         </div>
-
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-1.5">
+          <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text)', marginBottom: '6px', fontFamily: 'Instrument Sans, sans-serif' }}>
             Email
           </label>
           <input
-            id="email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            className="w-full bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com" style={inputStyle}
+            onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
+            onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
           />
         </div>
-
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-1.5">
+          <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text)', marginBottom: '6px', fontFamily: 'Instrument Sans, sans-serif' }}>
             Password
-            <span className="text-slate-500 font-normal ml-1">(min. 8 chars)</span>
+            <span style={{ fontWeight: 400, color: 'var(--text-3)', marginLeft: '6px' }}>min. 8 characters</span>
           </label>
           <input
-            id="password"
-            type="password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            className="w-full bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••" style={inputStyle}
+            onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
+            onBlur={(e) => e.target.style.borderColor = 'var(--border)'}
           />
         </div>
-
         <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-lg transition-colors text-sm mt-2"
+          type="submit" disabled={loading}
+          style={{
+            background: loading ? 'var(--bg-subtle)' : 'var(--accent)',
+            color: loading ? 'var(--text-2)' : '#fff',
+            border: 'none', borderRadius: '8px', padding: '11px',
+            fontSize: '14px', fontWeight: 500, cursor: loading ? 'not-allowed' : 'pointer',
+            fontFamily: 'Instrument Sans, sans-serif', marginTop: '4px',
+          }}
         >
-          {loading ? 'Creating account…' : 'Create account'}
+          {loading ? 'Creating account...' : 'Create account'}
         </button>
       </form>
 
-      <p className="text-center text-slate-500 text-sm mt-6">
+      <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-3)', marginTop: '24px', fontFamily: 'Instrument Sans, sans-serif' }}>
         Already have an account?{' '}
-        <Link href="/login" className="text-indigo-400 hover:text-indigo-300 transition-colors">
+        <Link href="/login" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>
           Sign in
         </Link>
       </p>

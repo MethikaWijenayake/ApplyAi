@@ -4,8 +4,12 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 type UploadState = 'idle' | 'uploading' | 'parsing' | 'saving' | 'done' | 'error'
-
 const MAX_SIZE = 5 * 1024 * 1024
+
+const statusMessages: Record<UploadState, string> = {
+  idle: '', uploading: 'Uploading...', parsing: 'Extracting text from your resume...',
+  saving: 'Saving profile...', done: 'Done. Redirecting...', error: '',
+}
 
 export default function ResumeUploadClient() {
   const router = useRouter()
@@ -13,213 +17,176 @@ export default function ResumeUploadClient() {
   const [state, setState] = useState<UploadState>('idle')
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
-  const [fileName, setFileName] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
+  const [fileName, setFileName] = useState<string | null>(null)
 
-  // Block browser from opening dropped files anywhere on the page
   useEffect(() => {
     const prevent = (e: DragEvent) => e.preventDefault()
     document.addEventListener('dragover', prevent)
     document.addEventListener('drop', prevent)
-    return () => {
-      document.removeEventListener('dragover', prevent)
-      document.removeEventListener('drop', prevent)
-    }
+    return () => { document.removeEventListener('dragover', prevent); document.removeEventListener('drop', prevent) }
   }, [])
 
-  const statusMessages: Record<UploadState, string> = {
-    idle: '',
-    uploading: 'Uploading to secure storage…',
-    parsing: 'Extracting text from your resume…',
-    saving: 'Saving parsed profile…',
-    done: 'Done! Redirecting to your profile…',
-    error: '',
-  }
-
   async function handleFile(file: File) {
-    setError(null)
-    setFileName(file.name)
-
-    const isAllowed =
-      file.type === 'application/pdf' ||
-      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      /\.(pdf|docx)$/i.test(file.name)
-
+    setError(null); setFileName(file.name)
+    const isAllowed = file.type === 'application/pdf' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || /\.(pdf|docx)$/i.test(file.name)
     if (!isAllowed) { setError('Only PDF and DOCX files are supported.'); return }
     if (file.size > MAX_SIZE) { setError('File is too large. Maximum size is 5 MB.'); return }
 
-    setState('uploading')
-    setProgress(20)
-    const formData = new FormData()
-    formData.append('file', file)
-
+    setState('uploading'); setProgress(20)
+    const formData = new FormData(); formData.append('file', file)
     try {
-      setState('parsing')
-      setProgress(50)
-
+      setState('parsing'); setProgress(50)
       const res = await fetch('/api/resume/upload', { method: 'POST', body: formData })
-      setProgress(80)
-      setState('saving')
-
+      setProgress(80); setState('saving')
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Upload failed.')
-
-      setProgress(100)
-      setState('done')
-      setTimeout(() => router.push('/resume/profile'), 1200)
+      setProgress(100); setState('done')
+      setTimeout(() => router.push('/resume/profile'), 1000)
     } catch (err: unknown) {
-      setState('error')
-      setError(err instanceof Error ? err.message : 'Something went wrong.')
+      setState('error'); setError(err instanceof Error ? err.message : 'Something went wrong.')
     }
   }
 
   const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation()
-    setDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleFile(file)
-  }, [])
-
-  const onDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation(); setDragOver(true)
-  }, [])
-
-  const onDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation(); setDragOver(false)
+    const file = e.dataTransfer.files[0]; if (file) handleFile(file)
   }, [])
 
   const isProcessing = ['uploading', 'parsing', 'saving'].includes(state)
 
+  const zoneBorder = dragOver ? 'var(--accent)' : state === 'done' ? 'var(--success)' : state === 'error' ? 'var(--error)' : 'var(--border)'
+  const zoneBg = dragOver ? 'var(--accent-light)' : state === 'done' ? 'var(--success-light)' : state === 'error' ? 'var(--error-light)' : 'var(--bg-card)'
+
   return (
-    <div className="max-w-2xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white mb-1">Resume</h1>
-        <p className="text-slate-400">
-          Upload your resume and we&apos;ll extract your skills, experience, and education automatically.
+    <div style={{ maxWidth: '560px' }}>
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{ fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: '24px', color: 'var(--text)', marginBottom: '6px' }}>
+          Resume
+        </h1>
+        <p style={{ fontSize: '14px', color: 'var(--text-2)', fontFamily: 'Instrument Sans, sans-serif' }}>
+          Upload your resume and we will extract your skills, experience, and education.
         </p>
       </div>
 
+      {/* Drop zone */}
       <div
         onDrop={onDrop}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDragEnter={onDragOver}
-        className={`relative rounded-2xl border-2 border-dashed transition-all duration-200 ${
-          isProcessing || state === 'done' ? 'cursor-default' : 'cursor-pointer'
-        } ${
-          dragOver ? 'border-indigo-400 bg-indigo-950/40'
-          : state === 'done' ? 'border-emerald-500 bg-emerald-950/20'
-          : state === 'error' ? 'border-red-500 bg-red-950/20'
-          : 'border-slate-700 bg-slate-900 hover:border-indigo-500 hover:bg-slate-800/50'
-        }`}
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true) }}
+        onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(false) }}
+        onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setDragOver(true) }}
+        style={{
+          border: `2px dashed ${zoneBorder}`, borderRadius: '12px',
+          background: zoneBg, padding: '56px 40px', textAlign: 'center',
+          cursor: isProcessing || state === 'done' ? 'default' : 'pointer',
+          transition: 'all 0.15s',
+        }}
       >
         <input
-          ref={inputRef}
-          type="file"
+          ref={inputRef} type="file"
           accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
-          className="hidden"
+          style={{ display: 'none' }}
         />
 
-        <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
-          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-5 transition-colors ${
-            state === 'done' ? 'bg-emerald-500/20'
-            : state === 'error' ? 'bg-red-500/20'
-            : dragOver ? 'bg-indigo-600/20'
-            : 'bg-slate-800'
-          }`}>
-            {state === 'done' ? (
-              <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            ) : state === 'error' ? (
-              <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            ) : isProcessing ? (
-              <svg className="w-8 h-8 text-indigo-400 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : dragOver ? (
-              <svg className="w-8 h-8 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-            ) : (
-              <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            )}
-          </div>
-
+        {/* Icon */}
+        <div style={{ marginBottom: '16px' }}>
           {isProcessing ? (
-            <>
-              <p className="text-white font-medium mb-1">{statusMessages[state]}</p>
-              {fileName && <p className="text-slate-500 text-sm truncate max-w-xs">{fileName}</p>}
-              <div className="w-48 h-1 bg-slate-800 rounded-full mt-5 overflow-hidden">
-                <div className="h-full bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
-              </div>
-            </>
+            <svg style={{ animation: 'spin 1s linear infinite', margin: '0 auto', color: 'var(--accent)' }} width="32" height="32" fill="none" viewBox="0 0 24 24">
+              <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+              <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
           ) : state === 'done' ? (
-            <p className="text-emerald-400 font-medium">{statusMessages.done}</p>
-          ) : dragOver ? (
-            <p className="text-indigo-300 font-medium">Release to upload</p>
+            <svg style={{ margin: '0 auto', color: 'var(--success)' }} width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
           ) : (
-            <>
-              <p className="text-white font-medium mb-1">Drop your resume here</p>
-              <p className="text-slate-500 text-sm mb-5">or</p>
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors mb-5"
-              >
-                Browse files
-              </button>
-              <div className="flex items-center gap-2">
-                <span className="bg-slate-800 text-slate-400 text-xs px-2.5 py-1 rounded-md border border-slate-700">PDF</span>
-                <span className="bg-slate-800 text-slate-400 text-xs px-2.5 py-1 rounded-md border border-slate-700">DOCX</span>
-                <span className="text-slate-600 text-xs">· max 5 MB</span>
-              </div>
-            </>
+            <svg style={{ margin: '0 auto', color: dragOver ? 'var(--accent)' : 'var(--text-3)' }} width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
           )}
         </div>
+
+        {isProcessing ? (
+          <>
+            <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', marginBottom: '4px', fontFamily: 'Instrument Sans, sans-serif' }}>
+              {statusMessages[state]}
+            </p>
+            {fileName && <p style={{ fontSize: '12px', color: 'var(--text-3)', fontFamily: 'Instrument Sans, sans-serif' }}>{fileName}</p>}
+            <div style={{ width: '160px', height: '3px', background: 'var(--border)', borderRadius: '2px', margin: '16px auto 0', overflow: 'hidden' }}>
+              <div style={{ height: '100%', background: 'var(--accent)', borderRadius: '2px', width: `${progress}%`, transition: 'width 0.5s ease' }} />
+            </div>
+          </>
+        ) : state === 'done' ? (
+          <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--success)', fontFamily: 'Instrument Sans, sans-serif' }}>Done. Redirecting to your profile...</p>
+        ) : (
+          <>
+            <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', marginBottom: '4px', fontFamily: 'Instrument Sans, sans-serif' }}>
+              {dragOver ? 'Release to upload' : 'Drop your resume here'}
+            </p>
+            <p style={{ fontSize: '13px', color: 'var(--text-3)', marginBottom: '20px', fontFamily: 'Instrument Sans, sans-serif' }}>or</p>
+            <button
+              type="button" onClick={() => inputRef.current?.click()}
+              style={{
+                background: 'var(--accent)', color: '#fff', border: 'none',
+                borderRadius: '8px', padding: '9px 20px', fontSize: '13px',
+                fontWeight: 500, cursor: 'pointer', fontFamily: 'Instrument Sans, sans-serif',
+                marginBottom: '16px',
+              }}
+            >
+              Browse files
+            </button>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+              {['PDF', 'DOCX'].map(f => (
+                <span key={f} style={{
+                  fontSize: '11px', color: 'var(--text-3)', fontFamily: 'Instrument Sans, sans-serif',
+                  border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 8px',
+                  background: 'var(--bg)',
+                }}>{f}</span>
+              ))}
+              <span style={{ fontSize: '11px', color: 'var(--text-3)', fontFamily: 'Instrument Sans, sans-serif' }}>· max 5 MB</span>
+            </div>
+          </>
+        )}
       </div>
 
+      {/* Error */}
       {error && (
-        <div className="mt-4 bg-red-950/50 border border-red-800 text-red-300 text-sm px-4 py-3 rounded-xl flex items-start gap-3">
-          <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span>{error}</span>
+        <div style={{
+          marginTop: '12px', background: 'var(--error-light)', border: '1px solid #F0B8B4',
+          color: 'var(--error)', fontSize: '13px', padding: '10px 14px',
+          borderRadius: '8px', fontFamily: 'Instrument Sans, sans-serif',
+        }}>
+          {error}
         </div>
       )}
 
+      {/* Tips */}
       {(state === 'idle' || state === 'error') && (
-        <div className="mt-6 bg-slate-900 border border-slate-800 rounded-xl p-5">
-          <p className="text-slate-400 text-sm font-medium mb-3">Tips for best results</p>
-          <ul className="space-y-2">
-            {[
-              'Use a text-based PDF, not a scanned image',
-              'Include clear section headings: Experience, Education, Skills',
-              'Make sure your name is on the first line of the document',
-            ].map((tip) => (
-              <li key={tip} className="flex items-start gap-2 text-slate-500 text-sm">
-                <span className="text-indigo-500 mt-0.5">›</span>
-                {tip}
-              </li>
-            ))}
-          </ul>
+        <div style={{ marginTop: '20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px 20px' }}>
+          <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', marginBottom: '10px', fontFamily: 'Instrument Sans, sans-serif' }}>
+            Tips for best results
+          </p>
+          {[
+            'Use a text-based PDF, not a scanned image',
+            'Use clear section headings: Experience, Education, Skills',
+            'Put your name on the first line of the document',
+          ].map(tip => (
+            <p key={tip} style={{ fontSize: '12px', color: 'var(--text-2)', marginBottom: '4px', fontFamily: 'Instrument Sans, sans-serif' }}>
+              — {tip}
+            </p>
+          ))}
         </div>
       )}
 
       {state === 'error' && (
-        <button
-          onClick={() => { setState('idle'); setError(null); setFileName(null) }}
-          className="mt-4 text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors"
-        >
-          ← Try a different file
+        <button onClick={() => { setState('idle'); setError(null); setFileName(null) }}
+          style={{ marginTop: '12px', background: 'none', border: 'none', color: 'var(--accent)', fontSize: '13px', cursor: 'pointer', fontFamily: 'Instrument Sans, sans-serif' }}>
+          Try a different file
         </button>
       )}
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }

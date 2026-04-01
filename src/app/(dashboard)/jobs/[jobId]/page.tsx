@@ -1,68 +1,47 @@
 'use client'
 
-import { useSearchParams, useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useState } from 'react'
 
 interface MatchResult {
-  match_score: number
-  strengths: string[]
-  skill_gaps: string[]
-  recommendations: string[]
-  summary?: string
-  ai_powered?: boolean
-  ai_enabled?: boolean
-  cached?: boolean
+  match_score: number; strengths: string[]; skill_gaps: string[]
+  recommendations: string[]; summary?: string; ai_powered?: boolean; cached?: boolean
 }
 
-function CircularScore({ score }: { score: number }) {
-  const radius = 52
-  const circumference = 2 * Math.PI * radius
-  const strokeDashoffset = circumference - (score / 100) * circumference
-
-  const color =
-    score >= 75 ? '#34d399' :
-    score >= 50 ? '#fbbf24' :
-    '#f87171'
-
+function ScoreRing({ score }: { score: number }) {
+  const r = 40, c = 2 * Math.PI * r
+  const offset = c - (score / 100) * c
+  const color = score >= 75 ? 'var(--success)' : score >= 50 ? '#C0862A' : 'var(--error)'
   return (
-    <div className="relative w-36 h-36 flex items-center justify-center">
-      <svg className="w-36 h-36 -rotate-90" viewBox="0 0 120 120">
-        <circle cx="60" cy="60" r={radius} fill="none" stroke="#1e293b" strokeWidth="10" />
-        <circle
-          cx="60" cy="60" r={radius} fill="none"
-          stroke={color} strokeWidth="10"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          style={{ transition: 'stroke-dashoffset 1s ease-in-out' }}
-        />
+    <div style={{ position: 'relative', width: '96px', height: '96px', flexShrink: 0 }}>
+      <svg width="96" height="96" viewBox="0 0 96 96" style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx="48" cy="48" r={r} fill="none" stroke="var(--border)" strokeWidth="7" />
+        <circle cx="48" cy="48" r={r} fill="none" stroke={color} strokeWidth="7"
+          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 1s ease' }} />
       </svg>
-      <div className="absolute flex flex-col items-center">
-        <span className="text-3xl font-bold text-white">{score}</span>
-        <span className="text-slate-400 text-xs">/ 100</span>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontFamily: 'Instrument Serif, serif', fontSize: '22px', color: 'var(--text)', lineHeight: 1 }}>{score}</span>
+        <span style={{ fontSize: '10px', color: 'var(--text-3)', fontFamily: 'Instrument Sans, sans-serif' }}>/ 100</span>
       </div>
     </div>
   )
 }
 
 export default function JobDetailPage() {
-  const searchParams = useSearchParams()
   const router = useRouter()
-
+  const searchParams = useSearchParams()
   const rawData = searchParams.get('data')
   const job = rawData ? JSON.parse(decodeURIComponent(rawData)) : null
-
   const [matchResult, setMatchResult] = useState<MatchResult | null>(null)
   const [matching, setMatching] = useState(false)
   const [matchError, setMatchError] = useState<string | null>(null)
 
-  if (!job) {
-    return (
-      <div className="max-w-3xl">
-        <p className="text-slate-400">Job not found. <button onClick={() => router.back()} className="text-indigo-400">Go back</button></p>
-      </div>
-    )
-  }
+  if (!job) return (
+    <div><p style={{ color: 'var(--text-2)', fontFamily: 'Instrument Sans, sans-serif' }}>Job not found.{' '}
+      <button onClick={() => router.back()} style={{ color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Instrument Sans, sans-serif' }}>Go back</button>
+    </p></div>
+  )
 
   const salary = (() => {
     if (!job.salary_min && !job.salary_max) return null
@@ -73,94 +52,51 @@ export default function JobDetailPage() {
   })()
 
   async function handleCheckMatch() {
-    setMatching(true)
-    setMatchError(null)
-
+    setMatching(true); setMatchError(null)
     try {
       const res = await fetch('/api/jobs/match', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          job_id: job.id,
-          job_title: job.title,
-          job_description: job.description,
-        }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job.id, job_title: job.title, job_description: job.description }),
       })
-
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Match failed')
       setMatchResult(data)
     } catch (err: unknown) {
       setMatchError(err instanceof Error ? err.message : 'Something went wrong')
-    } finally {
-      setMatching(false)
-    }
+    } finally { setMatching(false) }
   }
 
   return (
-    <div className="max-w-3xl">
+    <div style={{ maxWidth: '680px' }}>
       {/* Back */}
-      <button
-        onClick={() => router.back()}
-        className="flex items-center gap-2 text-slate-400 hover:text-white text-sm mb-6 transition-colors"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-        </svg>
+      <button onClick={() => router.back()} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: 'var(--text-2)', fontSize: '13px', cursor: 'pointer', marginBottom: '20px', padding: 0, fontFamily: 'Instrument Sans, sans-serif' }}>
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         Back to search
       </button>
 
-      {/* Job header */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-5">
-        <div className="flex items-start justify-between gap-4 mb-4">
+      {/* Header card */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', padding: '22px 24px', marginBottom: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', marginBottom: '16px' }}>
           <div>
-            <h1 className="text-xl font-bold text-white mb-1">{job.title}</h1>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400">
-              <span className="font-medium text-slate-300">{job.company}</span>
-              <span className="text-slate-700">·</span>
-              <span>{job.location}</span>
-              {job.employment_type && (
-                <>
-                  <span className="text-slate-700">·</span>
-                  <span>{job.employment_type.replace('_', ' ')}</span>
-                </>
-              )}
-            </div>
+            <h1 style={{ fontFamily: 'Instrument Serif, serif', fontWeight: 400, fontSize: '22px', color: 'var(--text)', marginBottom: '6px' }}>{job.title}</h1>
+            <p style={{ fontSize: '13px', color: 'var(--text-2)', fontFamily: 'Instrument Sans, sans-serif' }}>
+              {job.company} · {job.location}
+              {job.employment_type && ` · ${job.employment_type.replace('_', ' ')}`}
+            </p>
           </div>
-          {salary && (
-            <span className="text-emerald-400 font-semibold text-sm whitespace-nowrap">{salary}</span>
-          )}
+          {salary && <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--success)', fontFamily: 'Instrument Sans, sans-serif', whiteSpace: 'nowrap' }}>{salary}</span>}
         </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={handleCheckMatch}
-            disabled={matching || !!matchResult}
-            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-colors flex items-center gap-2"
-          >
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={handleCheckMatch} disabled={matching || !!matchResult}
+            style={{ background: matchResult ? 'var(--bg-subtle)' : 'var(--accent)', color: matchResult ? 'var(--text-2)' : '#fff', border: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 500, cursor: matching || !!matchResult ? 'not-allowed' : 'pointer', fontFamily: 'Instrument Sans, sans-serif', display: 'flex', alignItems: 'center', gap: '6px', opacity: matching ? 0.7 : 1 }}>
             {matching ? (
-              <>
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Analyzing…
-              </>
-            ) : matchResult ? (
-              '✓ Matched'
-            ) : (
-              '🎯 Check My Match'
-            )}
+              <><svg style={{ animation: 'spin 1s linear infinite' }} width="14" height="14" fill="none" viewBox="0 0 24 24"><circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Analyzing...</>
+            ) : matchResult ? 'Matched' : 'Check my match'}
           </button>
-
           {job.apply_url && job.apply_url !== '#' && (
-            <a
-              href={job.apply_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white text-sm font-medium px-5 py-2.5 rounded-lg transition-all"
-            >
-              Apply ↗
+            <a href={job.apply_url} target="_blank" rel="noopener noreferrer"
+              style={{ border: '1px solid var(--border)', color: 'var(--text)', textDecoration: 'none', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontFamily: 'Instrument Sans, sans-serif' }}>
+              Apply directly
             </a>
           )}
         </div>
@@ -168,97 +104,78 @@ export default function JobDetailPage() {
 
       {/* Match error */}
       {matchError && (
-        <div className="mb-5 bg-red-950/50 border border-red-800 text-red-300 text-sm px-4 py-3 rounded-xl">
+        <div style={{ marginBottom: '10px', background: 'var(--error-light)', border: '1px solid #F0B8B4', color: 'var(--error)', fontSize: '13px', padding: '10px 14px', borderRadius: '8px', fontFamily: 'Instrument Sans, sans-serif' }}>
           {matchError}
         </div>
       )}
 
       {/* Match result */}
       {matchResult && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-5">
-          <div className="flex items-center gap-2 mb-6">
-            <h2 className="text-white font-semibold">Resume Match Analysis</h2>
-            <span className={`text-xs px-2 py-0.5 rounded-full border ${
-              matchResult.ai_powered
-                ? 'bg-indigo-950/60 border-indigo-800/50 text-indigo-300'
-                : 'bg-slate-800 border-slate-700 text-slate-400'
-            }`}>
-              {matchResult.ai_powered ? '✨ AI-powered' : '🔧 Mock data'}
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', padding: '22px 24px', marginBottom: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+            <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', fontFamily: 'Instrument Sans, sans-serif' }}>
+              Match Analysis
+            </p>
+            <span style={{ fontSize: '10px', color: matchResult.ai_powered ? 'var(--accent)' : 'var(--text-3)', border: `1px solid ${matchResult.ai_powered ? 'var(--accent-border)' : 'var(--border)'}`, background: matchResult.ai_powered ? 'var(--accent-light)' : 'var(--bg-subtle)', padding: '2px 8px', borderRadius: '100px', fontFamily: 'Instrument Sans, sans-serif' }}>
+              {matchResult.ai_powered ? 'AI-powered' : 'Mock data'}
             </span>
-            {matchResult.cached && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-400">
-                cached
-              </span>
-            )}
+            {matchResult.cached && <span style={{ fontSize: '10px', color: 'var(--text-3)', border: '1px solid var(--border)', background: 'var(--bg-subtle)', padding: '2px 8px', borderRadius: '100px', fontFamily: 'Instrument Sans, sans-serif' }}>cached</span>}
           </div>
 
           {/* Score + summary */}
-          <div className="flex items-center gap-8 mb-6">
-            <CircularScore score={matchResult.match_score} />
+          <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', alignItems: 'center' }}>
+            <ScoreRing score={matchResult.match_score} />
             <div>
-              <p className="text-slate-300 text-sm font-medium mb-1">Overall match</p>
-              <p className="text-slate-500 text-sm leading-relaxed max-w-xs">
-                {matchResult.summary ?? 'Analysis complete. See details below.'}
+              <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', marginBottom: '6px', fontFamily: 'Instrument Sans, sans-serif' }}>Overall match</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-2)', lineHeight: 1.6, fontFamily: 'Instrument Sans, sans-serif', maxWidth: '380px' }}>
+                {matchResult.summary ?? 'Analysis complete.'}
               </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
             {/* Strengths */}
-            <div className="bg-emerald-950/30 border border-emerald-800/30 rounded-lg p-4">
-              <p className="text-emerald-400 text-sm font-medium mb-3 flex items-center gap-1.5">
-                <span>✅</span> Your strengths
-              </p>
-              <ul className="space-y-1.5">
-                {matchResult.strengths.map((s) => (
-                  <li key={s} className="text-slate-300 text-sm flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full flex-shrink-0" />
-                    {s}
-                  </li>
-                ))}
-              </ul>
+            <div style={{ background: 'var(--success-light)', border: '1px solid #B8DCCC', borderRadius: '8px', padding: '14px 16px' }}>
+              <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--success)', marginBottom: '10px', fontFamily: 'Instrument Sans, sans-serif' }}>Strengths</p>
+              {matchResult.strengths.map(s => (
+                <p key={s} style={{ fontSize: '12px', color: 'var(--text)', marginBottom: '4px', fontFamily: 'Instrument Sans, sans-serif', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--success)', display: 'inline-block', flexShrink: 0 }} />{s}
+                </p>
+              ))}
             </div>
-
-            {/* Skill gaps */}
-            <div className="bg-amber-950/30 border border-amber-800/30 rounded-lg p-4">
-              <p className="text-amber-400 text-sm font-medium mb-3 flex items-center gap-1.5">
-                <span>⚡</span> Skill gaps
-              </p>
-              <ul className="space-y-1.5">
-                {matchResult.skill_gaps.map((s) => (
-                  <li key={s} className="text-slate-300 text-sm flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-amber-400 rounded-full flex-shrink-0" />
-                    {s}
-                  </li>
-                ))}
-              </ul>
+            {/* Gaps */}
+            <div style={{ background: 'var(--warning-light)', border: '1px solid #E8D0B0', borderRadius: '8px', padding: '14px 16px' }}>
+              <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--warning)', marginBottom: '10px', fontFamily: 'Instrument Sans, sans-serif' }}>Skill gaps</p>
+              {matchResult.skill_gaps.map(s => (
+                <p key={s} style={{ fontSize: '12px', color: 'var(--text)', marginBottom: '4px', fontFamily: 'Instrument Sans, sans-serif', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'var(--warning)', display: 'inline-block', flexShrink: 0 }} />{s}
+                </p>
+              ))}
             </div>
           </div>
 
           {/* Recommendations */}
-          <div className="bg-indigo-950/30 border border-indigo-800/30 rounded-lg p-4">
-            <p className="text-indigo-300 text-sm font-medium mb-3 flex items-center gap-1.5">
-              <span>💡</span> Recommendations
-            </p>
-            <ul className="space-y-2">
-              {matchResult.recommendations.map((r, i) => (
-                <li key={i} className="text-slate-300 text-sm flex items-start gap-2">
-                  <span className="text-indigo-400 font-bold flex-shrink-0 mt-0.5">{i + 1}.</span>
-                  {r}
-                </li>
-              ))}
-            </ul>
+          <div style={{ background: 'var(--accent-light)', border: '1px solid var(--accent-border)', borderRadius: '8px', padding: '14px 16px' }}>
+            <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--accent)', marginBottom: '10px', fontFamily: 'Instrument Sans, sans-serif' }}>Recommendations</p>
+            {matchResult.recommendations.map((r, i) => (
+              <p key={i} style={{ fontSize: '12px', color: 'var(--text)', marginBottom: '6px', fontFamily: 'Instrument Sans, sans-serif', display: 'flex', gap: '8px' }}>
+                <span style={{ color: 'var(--accent)', fontWeight: 600, flexShrink: 0 }}>{i + 1}.</span>{r}
+              </p>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Full description */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-        <h2 className="text-white font-semibold mb-4">Job Description</h2>
-        <div className="text-slate-400 text-sm leading-relaxed whitespace-pre-line">
+      {/* Description */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px', padding: '22px 24px' }}>
+        <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-3)', marginBottom: '16px', fontFamily: 'Instrument Sans, sans-serif' }}>
+          Job Description
+        </p>
+        <p style={{ fontSize: '13px', color: 'var(--text-2)', lineHeight: 1.7, fontFamily: 'Instrument Sans, sans-serif', whiteSpace: 'pre-line' }}>
           {job.description}
-        </div>
+        </p>
       </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   )
 }
