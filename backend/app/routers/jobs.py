@@ -15,10 +15,6 @@ async def search_jobs(
     page: int = Query(1, ge=1),
     num_pages: int = Query(1, ge=1, le=3),
 ):
-    """
-    Search for jobs via JSearch API (RapidAPI).
-    Requires JSEARCH_API_KEY in backend/.env
-    """
     if not settings.jsearch_api_key:
         raise HTTPException(
             status_code=503,
@@ -54,25 +50,25 @@ async def search_jobs(
     data = resp.json()
     jobs_raw = data.get("data", [])
 
-    # Normalize to a clean shape
     jobs = []
     for j in jobs_raw:
+        description = j.get("job_description") or ""
         jobs.append({
-            "job_id": j.get("job_id", ""),
-            "title": j.get("job_title", ""),
-            "company": j.get("employer_name", ""),
-            "location": _format_location(j),
+            "job_id":          j.get("job_id", ""),
+            "title":           j.get("job_title", ""),
+            "company":         j.get("employer_name", ""),
+            "location":        _format_location(j),
             "employment_type": j.get("job_employment_type", ""),
-            "is_remote": j.get("job_is_remote", False),
-            "description": j.get("job_description", "")[:500],
-            "description_full": j.get("job_description", ""),
-            "salary_min": j.get("job_min_salary"),
-            "salary_max": j.get("job_max_salary"),
+            "is_remote":       j.get("job_is_remote", False),
+            "description":     description[:500],
+            "description_full": description,
+            "salary_min":      j.get("job_min_salary"),
+            "salary_max":      j.get("job_max_salary"),
             "salary_currency": j.get("job_salary_currency", "USD"),
-            "salary_period": j.get("job_salary_period", ""),
-            "apply_link": j.get("job_apply_link", ""),
-            "posted_at": j.get("job_posted_at_datetime_utc", ""),
-            "logo": j.get("employer_logo", ""),
+            "salary_period":   j.get("job_salary_period", ""),
+            "apply_link":      j.get("job_apply_link", ""),
+            "posted_at":       j.get("job_posted_at_datetime_utc", ""),
+            "logo":            j.get("employer_logo", ""),
         })
 
     return {"jobs": jobs, "total": len(jobs), "query": search_query}
@@ -80,8 +76,8 @@ async def search_jobs(
 
 def _format_location(j: dict) -> str:
     parts = []
-    city = j.get("job_city", "")
-    state = j.get("job_state", "")
+    city    = j.get("job_city", "")
+    state   = j.get("job_state", "")
     country = j.get("job_country", "")
     if city:
         parts.append(city)
@@ -89,4 +85,4 @@ def _format_location(j: dict) -> str:
         parts.append(state)
     elif country:
         parts.append(country)
-    return ", ".join(parts) if parts else "Remote" if j.get("job_is_remote") else "Unknown"
+    return ", ".join(parts) if parts else ("Remote" if j.get("job_is_remote") else "Unknown")
