@@ -17,7 +17,6 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
-  // Fetch user profile
   const { data: profile } = await supabase
     .from('users')
     .select('full_name, email, custom_email')
@@ -25,10 +24,10 @@ export default async function DashboardLayout({
     .single()
 
   return (
-    <div className="min-h-screen bg-slate-950 flex">
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex' }}>
       <Sidebar user={profile ?? { full_name: '', email: user.email ?? '', custom_email: null }} />
-      <main className="flex-1 ml-64 min-h-screen">
-        <div className="p-8">{children}</div>
+      <main style={{ flex: 1, marginLeft: '220px', minHeight: '100vh' }}>
+        <div style={{ padding: '40px 48px' }}>{children}</div>
       </main>
     </div>
   )
