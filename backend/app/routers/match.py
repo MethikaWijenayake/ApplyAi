@@ -2,45 +2,46 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.config import settings
-from app.services.ai_service import match_resume_to_job
+from app.services.ai_service import analyze_job_match
 
 router = APIRouter(prefix="/match", tags=["match"])
 
 
 class MatchRequest(BaseModel):
     resume_text: str
+    job_title: str
     job_description: str
-    job_id: str | None = None
 
 
-class MatchResponse(BaseModel):
-    match_score: int
-    strengths: list[str]
-    skill_gaps: list[str]
-    recommendations: list[str]
-    summary: str
-    ai_enabled: bool
-
-
-@router.post("/resume-to-job", response_model=MatchResponse)
-async def match_resume_to_job_endpoint(body: MatchRequest):
-    """
-    Match a resume against a job description.
-
-    AI_ENABLED=false → returns mock data instantly (default)
-    AI_ENABLED=true  → calls Claude API for real analysis
-    """
+@router.post("/analyze")
+async def analyze_match(body: MatchRequest):
     if not body.resume_text.strip():
-        raise HTTPException(status_code=400, detail="resume_text is required.")
+        raise HTTPException(status_code=400, detail="Resume text is required.")
     if not body.job_description.strip():
-        raise HTTPException(status_code=400, detail="job_description is required.")
+        raise HTTPException(status_code=400, detail="Job description is required.")
 
-    try:
-        result = await match_resume_to_job(body.resume_text, body.job_description)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"AI matching failed: {str(e)}",
-        )
+    result = await analyze_job_match(
+        body.resume_text,
+        body.job_title,
+        body.job_description,
+    )
 
-    return {**result, "ai_enabled": settings.ai_enabled}
+    return {
+        **result,
+        "ai_enabled": settings.ai_enabled,
+        "using_ollama": settings.use_ollama,
+    }
+
+
+@router.get("/status")
+async def ai_status():
+    return {
+        "ai_enabled": settings.ai_enabled,
+        "mode": (
+            f"ollama ({settings.ollama_model})" if settings.use_ollama and settings.ai_enabled
+            else "claude-api" if settings.ai_enabled
+            else "mock"
+        ),
+        "to_enable_ollama": "Set AI_ENABLED=true and USE_OLLAMA=true in backend/.env",
+        "to_enable_claude": "Set AI_ENABLED=true and ANTHROPIC_API_KEY=sk-ant-... in backend/.env",
+    }

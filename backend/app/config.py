@@ -10,16 +10,22 @@ class Settings(BaseSettings):
 
     # ── AI feature flag ───────────────────────────────────────────────────────
     # false = mock responses everywhere (default)
-    # true  = real Claude API (requires anthropic_api_key)
+    # true  = real AI (Claude API or Ollama depending on use_ollama)
     ai_enabled: bool = False
     anthropic_api_key: str = ""
 
+    # ── Ollama (local AI — free, runs on your PC) ─────────────────────────────
+    # Set use_ollama=true to use local Ollama instead of Claude API
+    # 1. Install from ollama.com
+    # 2. Run: ollama pull llama3.2
+    # 3. Set use_ollama=true and ai_enabled=true in .env
+    use_ollama: bool = False
+    ollama_model: str = "llama3.2"
+    ollama_base_url: str = "http://localhost:11434"
+
     # ── Phase 4 ───────────────────────────────────────────────────────────────
-    # Custom email domain — e.g. "getapplyai.com"
     email_domain: str = ""
-    # Resend API key for sending email
     resend_api_key: str = ""
-    # Secret to verify inbound Cloudflare email webhooks
     email_webhook_secret: str = ""
 
     # ── Phase 3 ───────────────────────────────────────────────────────────────

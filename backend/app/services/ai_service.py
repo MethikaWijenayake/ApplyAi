@@ -1,148 +1,186 @@
 """
-AI Service — Resume matching, interview prep, email drafting.
+AI service — all AI features go through this file.
 
-TOGGLE:
-  AI_ENABLED=false  →  returns hardcoded mock responses instantly (default)
-  AI_ENABLED=true   →  calls real Claude API
+Three modes controlled by environment variables:
+  AI_ENABLED=false              → mock responses (default, free, instant)
+  AI_ENABLED=true, USE_OLLAMA=true  → local Ollama (free, runs on your PC)
+  AI_ENABLED=true, USE_OLLAMA=false → Claude API (requires ANTHROPIC_API_KEY)
 
-To enable real AI:
-  1. Set AI_ENABLED=true in backend/.env
-  2. Set ANTHROPIC_API_KEY=sk-ant-... in backend/.env
-  3. Restart uvicorn
-  No code changes needed.
+To switch modes, only .env changes are needed — no code changes.
 """
 
 from app.config import settings
 
 
-# ── Resume ↔ Job matching ─────────────────────────────────────────────────────
-
-MOCK_MATCH_RESPONSE = {
-    "match_score": 78,
-    "strengths": ["Python", "Data Analysis", "FastAPI", "PostgreSQL"],
-    "skill_gaps": ["SQL", "Tableau", "Kubernetes"],
-    "recommendations": [
-        "Complete a SQL course on Coursera or Mode Analytics",
-        "Build a Tableau dashboard using a public dataset",
-        "Add a Kubernetes side-project or certification to your resume",
-    ],
-    "summary": (
-        "Strong backend and data engineering fit. "
-        "Brushing up on BI tooling and orchestration will make you highly competitive."
-    ),
-}
-
-
-async def match_resume_to_job(resume_text: str, job_description: str) -> dict:
+async def _call_ai(prompt: str, max_tokens: int = 1024) -> str:
     """
-    Compare a resume against a job description.
-    Returns match_score, strengths, skill_gaps, recommendations, summary.
+    Route to Ollama or Claude depending on settings.
+    Single function so all features use the same toggle.
     """
-    if not settings.ai_enabled:
-        return MOCK_MATCH_RESPONSE
+    if settings.use_ollama:
+        return await _call_ollama(prompt, max_tokens)
+    return await _call_claude(prompt, max_tokens)
 
-    # ── Real Claude API ───────────────────────────────────────────────────────
+
+async def _call_ollama(prompt: str, max_tokens: int = 1024) -> str:
+    """Call local Ollama API."""
+    import httpx
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        resp = await client.post(
+            f"{settings.ollama_base_url}/api/generate",
+            json={
+                "model": settings.ollama_model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"num_predict": max_tokens},
+            },
+        )
+        resp.raise_for_status()
+        return resp.json()["response"].strip()
+
+
+async def _call_claude(prompt: str, max_tokens: int = 1024) -> str:
+    """Call Anthropic Claude API."""
     import anthropic
 
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    message = client.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text.strip()
+
+
+# ── Resume → Job match ────────────────────────────────────────────────────────
+
+async def analyze_job_match(resume_text: str, job_title: str, job_description: str) -> dict:
+    if settings.ai_enabled:
+        return await _real_analyze_job_match(resume_text, job_title, job_description)
+    return _mock_analyze_job_match()
+
+
+def _mock_analyze_job_match() -> dict:
+    return {
+        "match_score": 78,
+        "strengths": ["Python", "Data Analysis", "Problem Solving", "Communication"],
+        "skill_gaps": ["SQL", "Tableau", "Cloud Infrastructure"],
+        "recommendations": [
+            "Complete a SQL fundamentals course on Coursera or Udemy.",
+            "Build a Tableau portfolio project to demonstrate visualization skills.",
+            "Get AWS Cloud Practitioner certified to strengthen your cloud knowledge.",
+        ],
+        "summary": "Strong analytical profile with solid programming skills. Closing the SQL and visualization gap would make you highly competitive for this role.",
+        "ai_powered": False,
+    }
+
+
+async def _real_analyze_job_match(
+    resume_text: str, job_title: str, job_description: str
+) -> dict:
+    import json
 
     prompt = f"""You are an expert technical recruiter and career coach.
 
-Analyze how well this resume matches the job description and return a JSON object with exactly these keys:
-- match_score: integer 0-100 representing overall fit
-- strengths: list of strings — skills/experiences from the resume that match the job well
-- skill_gaps: list of strings — skills required by the job that are missing or weak in the resume
-- recommendations: list of 2-4 actionable strings — specific steps the candidate can take to improve their fit
-- summary: one sentence summary of the overall fit
+Analyze how well this resume matches the job description below.
+
+JOB TITLE: {job_title}
+
+JOB DESCRIPTION:
+{job_description[:3000]}
 
 RESUME:
 {resume_text[:3000]}
 
-JOB DESCRIPTION:
-{job_description[:2000]}
+Respond with ONLY a valid JSON object in this exact format (no markdown, no explanation):
+{{
+  "match_score": <integer 0-100>,
+  "strengths": [<list of 3-5 skills the candidate has that match>],
+  "skill_gaps": [<list of 2-4 important missing skills>],
+  "recommendations": [<list of 2-3 specific actionable steps>],
+  "summary": "<2 sentence overall assessment>"
+}}"""
 
-Return ONLY valid JSON. No markdown, no explanation."""
+    try:
+        text = await _call_ai(prompt, max_tokens=1024)
 
-    message = client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
+        # Strip markdown fences if present
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
 
-    import json
-    raw = message.content[0].text.strip()
-    return json.loads(raw)
+        result = json.loads(text.strip())
+        result["ai_powered"] = True
+        result["model"] = settings.ollama_model if settings.use_ollama else "claude-sonnet"
+        return result
+
+    except Exception as e:
+        print(f"AI match failed, falling back to mock: {e}")
+        result = _mock_analyze_job_match()
+        result["error"] = str(e)
+        return result
 
 
 # ── Interview prep ────────────────────────────────────────────────────────────
 
 async def generate_interview_question(
-    job_title: str, resume_text: str, previous_messages: list
+    job_title: str, resume_json: dict, previous_messages: list
 ) -> str:
     if not settings.ai_enabled:
         questions = [
-            f"Tell me about yourself and why you're excited about the {job_title} role.",
-            "Walk me through the most technically complex project you've owned end-to-end.",
-            "How do you handle a production incident at 2 AM when you're the only one on-call?",
+            f"Tell me about yourself and why you are interested in the {job_title} role.",
+            "Describe a technically challenging project you led end-to-end.",
+            "How do you approach debugging a production issue under pressure?",
             "Where do you see yourself in three years?",
         ]
-        idx = min(len(previous_messages) // 2, len(questions) - 1)
-        return questions[idx]
+        idx = len(previous_messages) // 2
+        return questions[min(idx, len(questions) - 1)]
 
-    import anthropic
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    skills = resume_json.get("skills", [])
+    prompt = f"""You are conducting a job interview for a {job_title} position.
+The candidate has these skills: {', '.join(skills[:10])}.
+Previous messages in this interview: {len(previous_messages)}.
 
-    history = "\n".join(
-        f"{m['role'].upper()}: {m['content']}" for m in previous_messages[-6:]
-    )
+Ask ONE specific, relevant interview question. 
+Make it progressively harder if there have been previous messages.
+Return only the question, nothing else."""
 
-    message = client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=256,
-        messages=[{
-            "role": "user",
-            "content": (
-                f"You are conducting a job interview for a {job_title} position.\n"
-                f"Resume summary: {resume_text[:500]}\n"
-                f"Conversation so far:\n{history}\n\n"
-                "Ask the next interview question. Return only the question, nothing else."
-            ),
-        }],
-    )
-    return message.content[0].text.strip()
+    try:
+        return await _call_ai(prompt, max_tokens=150)
+    except Exception:
+        return f"Tell me about your experience relevant to the {job_title} role."
 
 
-# ── Follow-up email ───────────────────────────────────────────────────────────
+# ── Email auto-reply ──────────────────────────────────────────────────────────
 
-async def draft_followup_email(
-    job_title: str, company: str, days_since_apply: int
+async def generate_email_reply(
+    subject: str, body: str, user_name: str, job_title: str, company: str
 ) -> str:
     if not settings.ai_enabled:
+        first = user_name.split()[0] if user_name else "there"
+        role = f" regarding the {job_title} position at {company}" if job_title else ""
         return (
-            f"Subject: Following up — {job_title} application\n\n"
-            f"Hi [Hiring Manager],\n\n"
-            f"I applied for the {job_title} position at {company} "
-            f"{days_since_apply} days ago and wanted to briefly follow up. "
-            f"I'm very excited about this opportunity and would love to discuss "
-            f"how my background could be a great fit.\n\n"
-            f"Please let me know if there's anything else you need from me.\n\n"
-            f"Best,\n[Your name]"
+            f"Hi,\n\nThank you for reaching out{role}. "
+            f"I am very interested and would love to discuss further. "
+            f"Please let me know your availability for a call.\n\n"
+            f"Best regards,\n{first}"
         )
 
-    import anthropic
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    prompt = f"""Write a professional reply to this recruiter email on behalf of {user_name}.
 
-    message = client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=300,
-        messages=[{
-            "role": "user",
-            "content": (
-                f"Write a short, professional follow-up email for a {job_title} "
-                f"application at {company} sent {days_since_apply} days ago. "
-                "Include a subject line. Be concise and genuine. "
-                "Return only the email text."
-            ),
-        }],
-    )
-    return message.content[0].text.strip()
+Subject: {subject}
+Email: {body[:1000]}
+
+Job: {job_title} at {company}
+
+Write a warm, concise reply (under 120 words). Sign off with just the first name.
+Return only the email body, no subject line."""
+
+    try:
+        return await _call_ai(prompt, max_tokens=200)
+    except Exception as e:
+        print(f"Email reply AI failed: {e}")
+        first = user_name.split()[0] if user_name else "there"
+        return f"Hi,\n\nThank you for reaching out. I would love to connect.\n\nBest,\n{first}"
