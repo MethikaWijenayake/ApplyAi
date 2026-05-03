@@ -1,0 +1,317 @@
+// =============================================================
+// ApplyAI — Prisma Database Schema
+// =============================================================
+//
+// This file defines EVERY table in the ApplyAI database.
+// Prisma reads this file and:
+//   1. Generates TypeScript types for your code (npm run prisma:generate)
+//   2. Creates the actual tables in PostgreSQL (npm run prisma:migrate)
+//
+// After making ANY change to this file, always run:
+//   npm run prisma:generate  (updates TypeScript types)
+//   npm run prisma:migrate   (updates the database)
+//
+// To browse your data visually: npm run prisma:studio
+// =============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================
+// ENUMS
+// Enums are fixed sets of allowed values for a field.
+// =============================================================
+
+// The user's subscription plan — controls what features they can access
+enum Plan {
+  FREE      // 15 applications/month, manual trigger only
+  PRO       // 150 applications/month, full automation
+  PREMIUM   // Unlimited applications, all features
+}
+
+// The status of a job match — tracks where it is in the pipeline
+enum JobMatchStatus {
+  PENDING   // Job was discovered and scored, awaiting action
+  APPROVED  // User or rules engine said "yes, apply to this"
+  REJECTED  // User manually dismissed this job
+  APPLIED   // Application has been submitted successfully
+  SKIPPED   // Automatically skipped (score too low, rule blocked it)
+}
+
+// How the application was submitted
+enum SubmissionMethod {
+  WEBFORM    // Playwright filled in a web form (Workday, Greenhouse, etc.)
+  EASY_APPLY // LinkedIn Easy Apply
+  EMAIL      // Sent as an email from the user's assigned @mail.applyai.com address
+  MANUAL     // Form was too complex for automation — user must complete it manually
+}
+
+// The current status of a submitted application
+enum ApplicationStatus {
+  APPLIED       // We submitted it — awaiting any response
+  UNDER_REVIEW  // Employer acknowledged the application
+  INTERVIEW     // Interview offered or scheduled
+  OFFER         // Job offer received — requires user's attention
+  REJECTED      // Application was unsuccessful
+  WITHDRAWN     // User chose to withdraw this application
+}
+
+// Whether an email was sent or received
+enum EmailDirection {
+  INBOUND   // Email received FROM an employer INTO the user's assigned inbox
+  OUTBOUND  // Email sent FROM the user's assigned address TO an employer
+}
+
+// =============================================================
+// CORE USER MODELS
+// =============================================================
+
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  name                 String?
+  passwordHash         String?   // Null when user registers via Google OAuth
+  googleId             String?   @unique
+  plan                 Plan      @default(FREE)
+  personalEmail        String?   // The user's own email — used for platform notifications only
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?   @unique
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Core application relations
+  profile         Profile?
+  cvs             CV[]
+  assignedEmail   AssignedEmail?
+  applicationRule ApplicationRule?
+  jobMatches      JobMatch[]
+  applications    Application[]
+  notifications   Notification[]
+
+  // NextAuth.js requires these — do not remove
+  accounts        Account[]
+  sessions        Session[]
+
+  @@map("users")
+}
+
+model Profile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  jobTitles         String[] // Desired roles e.g. ["Software Engineer", "Backend Developer"]
+  location          String?  // Preferred work location e.g. "London, UK"
+  skills            String[] // Skills from CV e.g. ["TypeScript", "React", "PostgreSQL"]
+  workAuthorization String?  // e.g. "UK Citizen", "Work Visa", "Student Visa"
+  linkedinUrl       String?
+  portfolioUrl      String?
+  summary           String?  // Career summary — used as context when generating cover letters
+  salaryMin         Int?     // Minimum acceptable salary in USD per year
+  preferredJobTypes String[] // e.g. ["Full-time", "Contract"]
+  remoteOnly        Boolean  @default(false)
+  coverLetterTone   String   @default("PROFESSIONAL") // PROFESSIONAL | CONVERSATIONAL | ENTHUSIASTIC
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model CV {
+  id         String   @id @default(cuid())
+  userId     String
+  fileUrl    String   // URL to the file stored in S3/R2
+  parsedJson Json?    // AI-extracted structured data from the CV
+                      // Shape: { name, email, phone, skills[], workHistory[], education[], certifications[] }
+  uploadedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("cvs")
+}
+
+model AssignedEmail {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  address       String    @unique // e.g. "james-k9x2mq@mail.applyai.com"
+                                  // This is the email used on ALL job applications
+  inboxPolledAt DateTime? // Timestamp of the last time we checked this inbox for new emails
+  createdAt     DateTime  @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications Application[]
+
+  @@map("assigned_emails")
+}
+
+model ApplicationRule {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  maxPerDay          Int      @default(20)   // Never submit more than this many applications per day
+  minMatchScore      Int      @default(70)   // Only auto-apply to jobs with AI score >= this
+  blacklistCompanies String[] // Never apply to these companies e.g. ["Amazon", "Google"]
+  whitelistLocations String[] // Only apply to jobs in these locations (empty array = no restriction)
+  allowedJobTypes    String[] // e.g. ["Full-time"] — empty array means all types allowed
+  salaryFloor        Int?     // Skip jobs where listed salary is below this (USD/year)
+  isActive           Boolean  @default(true) // The master ON/OFF switch for all automation
+  communicationPrefs Json?    // Stores email agent preferences:
+                              // { availability: {days: [], timeRange: ""}, interviewFormat: "", autoReply: {} }
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("application_rules")
+}
+
+// =============================================================
+// JOB DISCOVERY
+// =============================================================
+
+model Job {
+  id           String    @id @default(cuid())
+  title        String
+  company      String
+  location     String?
+  salaryMin    Int?      // Parsed from job listing (may be null if not stated)
+  salaryMax    Int?      // Parsed from job listing (may be null if not stated)
+  description  String    // Full job description text extracted from the listing
+  url          String    @unique // The URL constraint prevents duplicate jobs being saved
+  source       String    // Where we found it: "indeed" | "linkedin" | "google_jobs" | "company_page"
+  postedAt     DateTime? // When the employer posted it (null if we couldn't determine it)
+  discoveredAt DateTime  @default(now()) // When our crawler first found this job
+  isActive     Boolean   @default(true)  // Set to false when the listing is taken down
+
+  jobMatches   JobMatch[]
+  applications Application[]
+
+  @@map("jobs")
+}
+
+// =============================================================
+// JOB MATCHING
+// =============================================================
+
+model JobMatch {
+  id          String         @id @default(cuid())
+  userId      String
+  jobId       String
+  matchScore  Int            // 0–100 score from AI comparison of job vs user profile
+  matchReason String?        // 1–2 sentence plain English explanation of the score
+  status      JobMatchStatus @default(PENDING)
+  createdAt   DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId]) // Prevents duplicate match records for the same user+job pair
+  @@map("job_matches")
+}
+
+// =============================================================
+// APPLICATIONS & COMMUNICATION
+// =============================================================
+
+model Application {
+  id               String            @id @default(cuid())
+  userId           String
+  jobId            String
+  assignedEmailId  String            // Which assigned email address was used for this application
+  coverLetter      String            @default("") // The AI-generated cover letter text
+  submissionMethod SubmissionMethod  @default(WEBFORM)
+  status           ApplicationStatus @default(APPLIED)
+  appliedAt        DateTime          @default(now())
+  lastActivityAt   DateTime          @default(now()) // Updated whenever status changes or email arrives
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job           Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  assignedEmail AssignedEmail @relation(fields: [assignedEmailId], references: [id])
+  emails        Email[]       // All emails (inbound and outbound) related to this application
+
+  @@map("applications")
+}
+
+model Email {
+  id               String         @id @default(cuid())
+  applicationId    String
+  direction        EmailDirection
+  subject          String
+  body             String         // Full email body text
+  fromAddress      String
+  toAddress        String
+  sentAt           DateTime       @default(now())
+  isRead           Boolean        @default(false) // Has the user viewed this in the dashboard?
+  aiClassification String?        // What the AI determined this email is:
+                                  // "CONFIRMATION" | "INTERVIEW_INVITE" | "REJECTION" |
+                                  // "INFO_REQUEST" | "AVAILABILITY_REQUEST" | "OFFER" | "OTHER"
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("emails")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // e.g. "APPLICATION_SUBMITTED" | "EMAIL_RECEIVED" | "INTERVIEW_INVITE" | "OFFER"
+  title     String   // Short headline shown in notification bell e.g. "Interview invite from Stripe"
+  message   String   // Full notification message with details
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// =============================================================
+// NEXTAUTH.JS REQUIRED MODELS
+//
+// These are required by NextAuth.js to manage OAuth accounts,
+// sessions, and email verification tokens.
+// DO NOT modify the field names — NextAuth expects exactly these.
+// =============================================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String  // e.g. "google", "credentials"
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}

@@ -1,0 +1,55 @@
+version: '3.8'
+
+# =============================================================
+# ApplyAI — Local Development Services
+# =============================================================
+# Start everything:  docker compose up -d
+# Stop everything:   docker compose down
+# View logs:         docker compose logs -f
+# Check status:      docker compose ps
+# =============================================================
+
+services:
+
+  # ─── PostgreSQL Database ──────────────────────────────────────
+  # This is where ALL your app data lives:
+  # users, jobs, applications, emails, notifications, etc.
+  postgres:
+    image: postgres:15-alpine
+    container_name: applyai_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: applyai           # Username for the database
+      POSTGRES_PASSWORD: applyai_password  # Password for the database
+      POSTGRES_DB: applyai_db          # Name of the database to create
+    ports:
+      - '5432:5432'  # Exposes postgres on localhost:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Data persists between restarts
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U applyai -d applyai_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis Cache & Queue ──────────────────────────────────────
+  # Used by BullMQ to manage background job queues:
+  # crawling jobs, application submission jobs, email processing jobs
+  redis:
+    image: redis:7-alpine
+    container_name: applyai_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'  # Exposes redis on localhost:6379
+    volumes:
+      - redis_data:/data  # Queue data persists between restarts
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:   # Named volume for PostgreSQL data
+  redis_data:      # Named volume for Redis data

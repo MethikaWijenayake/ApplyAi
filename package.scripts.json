@@ -1,0 +1,25 @@
+{
+  "_instructions": "Copy the 'scripts' section below into your package.json, replacing the existing scripts section entirely.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio",
+    "prisma:reset": "prisma migrate reset",
+    "workers:start": "ts-node --project tsconfig.json workers/index.ts"
+  },
+  "_script_explanations": {
+    "dev": "Starts the Next.js development server at http://localhost:3000 with hot reload",
+    "build": "Compiles the app for production deployment",
+    "start": "Runs the production build (run 'build' first)",
+    "lint": "Checks your code for errors using ESLint",
+    "prisma:generate": "Regenerates the Prisma client after schema changes",
+    "prisma:migrate": "Applies schema changes to the database (creates/alters tables)",
+    "prisma:studio": "Opens a visual database browser at http://localhost:5555",
+    "prisma:reset": "WARNING: Deletes all data and rebuilds tables from scratch",
+    "workers:start": "Starts all background workers (crawlers, email agent, application engine)"
+  }
+}
