@@ -9,6 +9,10 @@ const nextConfig = {
       },
     ],
   },
+  eslint: {
+    // Warnings don't fail the build â€” only errors do
+    ignoreDuringBuilds: false,
+  },
 }
 
 export default nextConfig
